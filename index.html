@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" href="../icon.png" type="image/x-icon">
+    <title>УХОДИ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: black;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: black;
+            position: relative;
+        }
+
+        .gaster-img {
+            display: block;
+            max-width: 95vw;
+            max-height: 95vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            filter: brightness(1.3) contrast(1.5);
+            animation: demonBlink 0.06s steps(2, jump-none) infinite;
+            transform-origin: center;
+            will-change: opacity, filter;
+        }
+
+        @keyframes demonBlink {
+            0% {
+                opacity: 1;
+                filter: brightness(1.4) contrast(1.6);
+            }
+            30% {
+                opacity: 0.05;
+                filter: brightness(0) contrast(3);
+            }
+            60% {
+                opacity: 1;
+                filter: brightness(1.6) contrast(1.2);
+            }
+            100% {
+                opacity: 0;
+                filter: brightness(0) contrast(5);
+            }
+        }
+
+        .hyper-strobe {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: white;
+            z-index: 9999;
+            mix-blend-mode: difference;
+            animation: blastStrobe 0.05s infinite;
+            opacity: 0.45;
+        }
+
+        @keyframes blastStrobe {
+            0% { opacity: 0; background: black; }
+            20% { opacity: 0.7; background: white; }
+            40% { opacity: 0; background: black; }
+            60% { opacity: 0.9; background: white; }
+            80% { opacity: 0.2; background: #222; }
+            100% { opacity: 0; background: black; }
+        }
+
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background-image: repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,0.08) 1px, transparent 2px);
+            z-index: 10000;
+            mix-blend-mode: overlay;
+            animation: tvNoiseShift 0.08s infinite;
+        }
+
+        @keyframes tvNoiseShift {
+            0% { background-position: 0% 0%; opacity: 0.4; }
+            100% { background-position: 5% 8%; opacity: 0.7; }
+        }
+
+        .warning-crawl {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            color: #2a2a2a;
+            font-size: 8px;
+            background: rgba(0,0,0,0.5);
+            padding: 3px 6px;
+            border-radius: 2px;
+            font-family: monospace;
+            z-index: 10001;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
+        .glitch-extra {
+            animation: glitchExplosion 0.07s infinite !important;
+        }
+
+        @keyframes glitchExplosion {
+            0% { transform: translate(0,0); filter: brightness(1); }
+            25% { transform: translate(-5px, 3px); filter: brightness(1.8); }
+            50% { transform: translate(5px, -2px); filter: brightness(0.3); }
+            75% { transform: translate(-2px, 4px); filter: brightness(2); }
+            100% { transform: translate(0,0); filter: brightness(1); }
+        }
+
+        ::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <img id="gasterImg" class="gaster-img" src="" alt="GASTER">
+    <div class="hyper-strobe"></div>
+    <div class="noise-overlay"></div>
+</div>
+
+<script>
+    (function() {
+        let audioCtx = null;
+        let noiseSource = null;
+        let mainGain = null;
+        let bassFilter = null;
+        let distortion = null;
+        let subOsc = null;
+        let isSoundActive = false;
+        
+        function buildHellNoise() {
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+                } catch(e) { return false; }
+            }
+            if (noiseSource) return true;
+            
+            try {
+                const bufferSize = audioCtx.sampleRate * 3;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const channel = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    channel[i] = (Math.random() * 2) - 1;
+                }
+                
+                noiseSource = audioCtx.createBufferSource();
+                noiseSource.buffer = buffer;
+                noiseSource.loop = true;
+                
+                mainGain = audioCtx.createGain();
+                mainGain.gain.value = 2.4;
+                
+                bassFilter = audioCtx.createBiquadFilter();
+                bassFilter.type = "lowshelf";
+                bassFilter.frequency.value = 350;
+                bassFilter.gain.value = 22;
+                
+                distortion = audioCtx.createWaveShaper();
+                function hardCurve(amount) {
+                    const samples = 65536;
+                    const curve = new Float32Array(samples);
+                    const deg = Math.PI / 180;
+                    for (let i = 0; i < samples; i++) {
+                        const x = (i * 2) / samples - 1;
+                        curve[i] = (3 + amount) * x * 30 * deg / (Math.PI + amount * Math.abs(x));
+                    }
+                    return curve;
+                }
+                distortion.curve = hardCurve(55);
+                distortion.oversample = '4x';
+                
+                const peak = audioCtx.createBiquadFilter();
+                peak.type = "peaking";
+                peak.frequency.value = 2100;
+                peak.gain.value = 14;
+                peak.Q.value = 6;
+                
+                noiseSource.connect(bassFilter);
+                bassFilter.connect(distortion);
+                distortion.connect(peak);
+                peak.connect(mainGain);
+                mainGain.connect(audioCtx.destination);
+                
+                noiseSource.start(0);
+                
+                subOsc = audioCtx.createOscillator();
+                const subGain = audioCtx.createGain();
+                const subFilter = audioCtx.createBiquadFilter();
+                subOsc.type = 'sawtooth';
+                subOsc.frequency.value = 41.2;
+                subFilter.type = "lowpass";
+                subFilter.frequency.value = 100;
+                subFilter.gain.value = 4;
+                subGain.gain.value = 1.2;
+                subOsc.connect(subFilter);
+                subFilter.connect(subGain);
+                subGain.connect(audioCtx.destination);
+                subOsc.start();
+                
+                return true;
+            } catch(e) {
+                console.warn("audio node error", e);
+                return false;
+            }
+        }
+        
+        function setUltraVolume() {
+            if (mainGain) mainGain.gain.value = 2.5;
+        }
+        
+        async function unleashSound() {
+            if (isSoundActive) return;
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (!noiseSource) {
+                buildHellNoise();
+            }
+            if (audioCtx.state === 'suspended') {
+                try {
+                    await audioCtx.resume();
+                    setUltraVolume();
+                    isSoundActive = true;
+                    removeSoundTriggers();
+                } catch(e) { console.warn(e); }
+            } else if (audioCtx.state === 'running') {
+                setUltraVolume();
+                isSoundActive = true;
+                removeSoundTriggers();
+            } else {
+                try {
+                    await audioCtx.resume();
+                    setUltraVolume();
+                    isSoundActive = true;
+                    removeSoundTriggers();
+                } catch(e) {}
+            }
+        }
+        
+        function removeSoundTriggers() {
+            document.removeEventListener('click', unleashSound);
+            document.removeEventListener('touchstart', unleashSound);
+            document.removeEventListener('mousemove', unleashSound);
+            document.removeEventListener('keydown', unleashSound);
+        }
+        
+        document.addEventListener('click', unleashSound, { once: false, passive: false });
+        document.addEventListener('touchstart', unleashSound, { once: false, passive: false });
+        document.addEventListener('mousemove', unleashSound, { once: false, passive: false });
+        document.addEventListener('keydown', unleashSound, { once: false, passive: false });
+        
+        setTimeout(() => {
+            if (!isSoundActive && audioCtx && audioCtx.state !== 'running') {
+                audioCtx.resume().then(() => {
+                    if (!noiseSource) buildHellNoise();
+                    setUltraVolume();
+                    isSoundActive = true;
+                    removeSoundTriggers();
+                }).catch(() => {});
+            } else if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx.resume().catch(() => {});
+            }
+        }, 200);
+        
+        const imgElement = document.getElementById('gasterImg');
+        
+        function loadGasterVisual() {
+            const testImg = new Image();
+            testImg.onload = () => {
+                imgElement.src = "gaster.webp";
+            };
+            testImg.onerror = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 1024;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#050505';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#2a2a2a';
+                ctx.beginPath();
+                ctx.ellipse(512, 460, 280, 330, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.ellipse(370, 370, 70, 95, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(654, 370, 70, 95, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#3a3a3a';
+                ctx.beginPath();
+                ctx.ellipse(370, 460, 30, 50, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(654, 460, 30, 50, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(512, 610, 125, 0.1, Math.PI - 0.1);
+                ctx.lineWidth = 24;
+                ctx.strokeStyle = '#444';
+                ctx.stroke();
+                for (let i=0;i<45;i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(150+Math.random()*740, 120+Math.random()*700);
+                    ctx.lineTo(170+Math.random()*740, 140+Math.random()*700);
+                    ctx.lineWidth = 3+Math.random()*8;
+                    ctx.strokeStyle = `#555`;
+                    ctx.stroke();
+                }
+                ctx.font = "900 90px 'Courier New'";
+                ctx.fillStyle = "#777";
+                ctx.fillText("W.D. GASTER", 280, 890);
+                ctx.font = "40px monospace";
+                ctx.fillStyle = "#444";
+                ctx.fillText("VOID", 500, 960);
+                const dataUrl = canvas.toDataURL("image/png");
+                imgElement.src = dataUrl;
+            };
+            testImg.src = "gaster.webp";
+        }
+        
+        loadGasterVisual();
+        
+        let chaosInterval = null;
+        function addVisualChaos() {
+            chaosInterval = setInterval(() => {
+                if (!imgElement) return;
+                const durations = ['0.045s', '0.055s', '0.065s', '0.075s', '0.085s'];
+                imgElement.style.animationDuration = durations[Math.floor(Math.random() * durations.length)];
+                if (Math.random() > 0.65) {
+                    imgElement.classList.add('glitch-extra');
+                    setTimeout(() => imgElement.classList.remove('glitch-extra'), 90);
+                }
+                const strobeLayer = document.querySelector('.hyper-strobe');
+                if (strobeLayer && Math.random() > 0.8) {
+                    const randomMix = Math.random() > 0.5 ? 'difference' : 'hard-light';
+                    strobeLayer.style.mixBlendMode = randomMix;
+                    setTimeout(() => strobeLayer.style.mixBlendMode = 'difference', 120);
+                }
+            }, 130);
+        }
+        addVisualChaos();
+        
+        function enterFullscreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>{});
+        }
+        document.addEventListener('click', enterFullscreen, { once: true });
+        document.addEventListener('touchstart', enterFullscreen, { once: true });
+        
+        setInterval(() => {
+            if (isSoundActive && mainGain && mainGain.gain.value < 2.3) {
+                mainGain.gain.value = 2.5;
+            }
+        }, 350);
+        
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    })();
+</script>
+</body>
+</html>
